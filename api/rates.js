@@ -1,4 +1,4 @@
-const CURRENCIES = ["USD", "EUR", "SGD", "AUD", "MYR", "CHF", "THB"];
+const CURRENCIES = ["USD", "EUR", "SGD", "AUD", "MYR", "CHF", "THB", "PHP"];
 
 export default async function handler(req, res) {
   try {
