@@ -1,4 +1,4 @@
-const ALLOWED = ["USD", "EUR", "SGD", "AUD", "MYR", "CHF"];
+const ALLOWED = ["USD", "EUR", "SGD", "AUD", "MYR", "CHF", "THB"];
 
 export default async function handler(req, res) {
   const { currency } = req.query;
