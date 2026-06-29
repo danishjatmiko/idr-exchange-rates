@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IDR Exchange Rates</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #111;
+    }
+    header p {
+      color: #666;
+      margin-top: 6px;
+      font-size: 14px;
+    }
+    #updated {
+      color: #999;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 24px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .card:hover {
+      border-color: #111;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    }
+    .card-top {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .flag { font-size: 32px; }
+    .currency-code {
+      font-size: 20px;
+      font-weight: 700;
+      color: #111;
+    }
+    .currency-name {
+      font-size: 13px;
+      color: #888;
+    }
+    .rate-label {
+      font-size: 12px;
+      color: #aaa;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .rate-value {
+      font-size: 26px;
+      font-weight: 700;
+      color: #111;
+    }
+    .rate-unit {
+      font-size: 13px;
+      color: #888;
+      margin-top: 2px;
+    }
+
+    .skeleton .rate-value {
+      background: #e8e8e8;
+      border-radius: 6px;
+      height: 32px;
+      width: 140px;
+      animation: pulse 1.2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #bbb;
+      margin-top: 14px;
+      text-align: right;
+    }
+
+    /* Modal */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .overlay.open { display: flex; }
+
+    .modal {
+      background: white;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 680px;
+      padding: 28px;
+      position: relative;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .modal-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .modal-title .flag { font-size: 28px; }
+    .modal-title h2 { font-size: 20px; font-weight: 700; color: #111; }
+    .modal-title p { font-size: 13px; color: #888; }
+
+    .close-btn {
+      background: #f0f0f0;
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #555;
+      flex-shrink: 0;
+    }
+    .close-btn:hover { background: #e0e0e0; }
+
+    .modal-stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .stat-box {
+      background: #f8f8f8;
+      border-radius: 10px;
+      padding: 12px 16px;
+      flex: 1;
+      min-width: 120px;
+    }
+    .stat-box .label { font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-box .value { font-size: 18px; font-weight: 700; color: #111; margin-top: 4px; }
+    .stat-box .value.up { color: #16a34a; }
+    .stat-box .value.down { color: #dc2626; }
+
+    .chart-wrapper { position: relative; height: 280px; }
+
+    .loading-chart {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 280px;
+      color: #aaa;
+      font-size: 14px;
+    }
+
+    .chart-period {
+      text-align: center;
+      font-size: 12px;
+      color: #aaa;
+      margin-top: 10px;
+    }
+
+    .error-msg {
+      text-align: center;
+      color: #dc2626;
+      padding: 20px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>IDR Exchange Rates</h1>
+  <p>How much 1 unit of each currency equals in Indonesian Rupiah</p>
+  <div id="updated">Loading...</div>
+</header>
+
+<div class="grid" id="grid"></div>
+
+<!-- Modal -->
+<div class="overlay" id="overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <div class="modal-title">
+        <span class="flag" id="modal-flag"></span>
+        <div>
+          <h2 id="modal-title"></h2>
+          <p id="modal-subtitle"></p>
+        </div>
+      </div>
+      <button class="close-btn" onclick="closeModal()">✕</button>
+    </div>
+
+    <div class="modal-stats">
+      <div class="stat-box">
+        <div class="label">Current Rate</div>
+        <div class="value" id="stat-current">—</div>
+      </div>
+      <div class="stat-box">
+        <div class="label">3-Month High</div>
+        <div class="value up" id="stat-high">—</div>
+      </div>
+      <div class="stat-box">
+        <div class="label">3-Month Low</div>
+        <div class="value down" id="stat-low">—</div>
+      </div>
+      <div class="stat-box">
+        <div class="label">3-Month Change</div>
+        <div class="value" id="stat-change">—</div>
+      </div>
+    </div>
+
+    <div id="chart-area">
+      <div class="loading-chart" id="chart-loading">Loading chart...</div>
+      <div class="chart-wrapper" id="chart-wrapper" style="display:none">
+        <canvas id="myChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-period" id="chart-period"></div>
+  </div>
+</div>
+
+<script>
+  const CURRENCIES = [
+    { code: "USD", name: "US Dollar",          flag: "🇺🇸" },
+    { code: "EUR", name: "Euro",               flag: "🇪🇺" },
+    { code: "SGD", name: "Singapore Dollar",   flag: "🇸🇬" },
+    { code: "AUD", name: "Australian Dollar",  flag: "🇦🇺" },
+    { code: "MYR", name: "Malaysian Ringgit",  flag: "🇲🇾" },
+    { code: "CHF", name: "Swiss Franc",        flag: "🇨🇭" },
+  ];
+
+  let ratesData = {};
+  let chartInstance = null;
+
+  function fmt(n) {
+    return new Intl.NumberFormat("id-ID", { minimumFractionDigits: 0 }).format(Math.round(n));
+  }
+
+  // Build skeleton cards
+  function buildGrid() {
+    const grid = document.getElementById("grid");
+    CURRENCIES.forEach(({ code, name, flag }) => {
+      const card = document.createElement("div");
+      card.className = "card skeleton";
+      card.id = `card-${code}`;
+      card.onclick = () => openModal(code);
+      card.innerHTML = `
+        <div class="card-top">
+          <span class="flag">${flag}</span>
+          <div>
+            <div class="currency-code">${code}</div>
+            <div class="currency-name">${name}</div>
+          </div>
+        </div>
+        <div class="rate-label">1 ${code} equals</div>
+        <div class="rate-value" id="rate-${code}"></div>
+        <div class="rate-unit">Indonesian Rupiah (IDR)</div>
+        <div class="hint">Click to see 3-month history →</div>
+      `;
+      grid.appendChild(card);
+    });
+  }
+
+  async function loadRates() {
+    try {
+      const res = await fetch("/api/rates");
+      const data = await res.json();
+
+      let latestDate = "";
+      data.rates.forEach(({ currency, rate, date }) => {
+        ratesData[currency] = rate;
+        const el = document.getElementById(`rate-${currency}`);
+        const card = document.getElementById(`card-${currency}`);
+        if (el) {
+          el.textContent = "Rp " + fmt(rate);
+          card.classList.remove("skeleton");
+        }
+        if (date > latestDate) latestDate = date;
+      });
+
+      document.getElementById("updated").textContent = `Last updated: ${latestDate} · Source: European Central Bank`;
+    } catch (e) {
+      document.getElementById("updated").textContent = "Failed to load rates.";
+    }
+  }
+
+  async function openModal(code) {
+    const info = CURRENCIES.find(c => c.code === code);
+
+    document.getElementById("modal-flag").textContent = info.flag;
+    document.getElementById("modal-title").textContent = `${code} / IDR`;
+    document.getElementById("modal-subtitle").textContent = info.name;
+    document.getElementById("stat-current").textContent = ratesData[code] ? "Rp " + fmt(ratesData[code]) : "—";
+    document.getElementById("stat-high").textContent = "—";
+    document.getElementById("stat-low").textContent = "—";
+    document.getElementById("stat-change").textContent = "—";
+    document.getElementById("chart-loading").style.display = "flex";
+    document.getElementById("chart-wrapper").style.display = "none";
+    document.getElementById("chart-period").textContent = "";
+    document.getElementById("overlay").classList.add("open");
+
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+    try {
+      const res = await fetch(`/api/history?currency=${code}`);
+      const data = await res.json();
+      renderChart(data.history, code);
+    } catch (e) {
+      document.getElementById("chart-loading").innerHTML =
+        `<div class="error-msg">Failed to load chart data.</div>`;
+    }
+  }
+
+  function renderChart(history, code) {
+    const labels = history.map(d => d.date);
+    const values = history.map(d => d.rate);
+
+    const high = Math.max(...values);
+    const low  = Math.min(...values);
+    const first = values[0];
+    const last  = values[values.length - 1];
+    const change = ((last - first) / first * 100).toFixed(2);
+    const isUp = change >= 0;
+
+    document.getElementById("stat-high").textContent = "Rp " + fmt(high);
+    document.getElementById("stat-low").textContent  = "Rp " + fmt(low);
+    const changeEl = document.getElementById("stat-change");
+    changeEl.textContent = (isUp ? "+" : "") + change + "%";
+    changeEl.className = "value " + (isUp ? "up" : "down");
+
+    document.getElementById("chart-period").textContent =
+      `${labels[0]}  →  ${labels[labels.length - 1]}  (${labels.length} trading days)`;
+
+    document.getElementById("chart-loading").style.display = "none";
+    document.getElementById("chart-wrapper").style.display = "block";
+
+    const ctx = document.getElementById("myChart").getContext("2d");
+    chartInstance = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: `1 ${code} in IDR`,
+          data: values,
+          borderColor: "#111",
+          backgroundColor: "rgba(0,0,0,0.05)",
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          fill: true,
+          tension: 0.3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => "Rp " + fmt(ctx.parsed.y),
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              maxTicksLimit: 6,
+              color: "#aaa",
+              font: { size: 11 },
+            },
+            grid: { display: false }
+          },
+          y: {
+            ticks: {
+              color: "#aaa",
+              font: { size: 11 },
+              callback: v => "Rp " + fmt(v),
+            },
+            grid: { color: "#f0f0f0" }
+          }
+        }
+      }
+    });
+  }
+
+  function closeModal(event) {
+    if (event && event.target !== document.getElementById("overlay")) return;
+    document.getElementById("overlay").classList.remove("open");
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+  }
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") closeModal();
+  });
+
+  buildGrid();
+  loadRates();
+</script>
+</body>
+</html>
